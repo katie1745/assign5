@@ -8,12 +8,17 @@
 class Coin:public GameObject{
 private:
     Position position;
+    Texture2D texture;
 public:
     Coin(Position pos){
         this->position=pos;
+        this->texture=LoadTexture("../resources/coin.png");
+    }
+    ~Coin(){
+        UnloadTexture(texture);
     }
     void render() override{
-        DrawCircle(this->position.getX(),this->position.getY(),15,YELLOW);
+        DrawTextureEx(texture,(Vector2){(float)position.getX()-15,(float)position.getY()-15},0.0f,0.01f,WHITE);
     }
 };
 #endif

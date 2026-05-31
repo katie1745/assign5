@@ -1,5 +1,6 @@
 #include "player.h"
 #include "raylib.h"
+#include "playerstate.h"
 using namespace PlayerState;
 Player::Player(Position initialPosition){
 position=initialPosition;
@@ -7,15 +8,32 @@ name="Katie";
 maxHealth=100;
 health=maxHealth;
 attack=10;
+texture=LoadTexture("../resources/knight.png");
 }
 
 int Player::getHealth() { return health; } 
+int Player::getMaxHealth() { return maxHealth; } 
+std::string Player::getName() { return name; }
 Position Player::getPosition() { return position; }
-int Player:: getMaxHealth() { return maxHealth; } 
-std::string Player:: getName() { return name; }
-void Player::setPosition(Position position) { this->position=position; }
+int Player::getX() const { return position.getX(); }
+int Player::getY() const { return position.getY(); }
 
-Player::~Player(){}
+void Player::setPosition(Position position) { 
+    this->position = position; 
+}
+
+Player::~Player(){
+    UnloadTexture(texture);
+}
+void Player::render(){
+    float scale=0.5f;
+    float imgWidth=texture.width*scale;
+    float imgHeight=texture.height*scale;
+    //讓圖片正中心對準騎士真正座標
+    int startX=position.getX()-(imgWidth/2);
+    int startY=position.getY()-(imgHeight/2);
+    DrawTextureEx(texture,(Vector2){(float)startX,(float)startY},0.0f,scale,WHITE);
+}
 MoveState Player::move(){
 bool isMoving=false;
 
@@ -45,7 +63,4 @@ else{
 }
 
 
-void Player::render() {
-    // DrawRectangle(x, y, 寬, 高, 顏色)
-    DrawRectangle(position.getX(), position.getY(), 40, 40, BLUE); 
-}
+
