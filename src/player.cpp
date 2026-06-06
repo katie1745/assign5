@@ -38,19 +38,19 @@ MoveState Player::move(){
 bool isMoving=false;
 
 if(IsKeyDown(KEY_D)==true&&this->position.getX()<760){
-this->position.setX(this->position.getX()+1);
+this->position.setX(this->position.getX()+2);
 isMoving=true;
 }
 if(IsKeyDown(KEY_A)==true&&this->position.getX()>0){
-this->position.setX(this->position.getX()-1);
+this->position.setX(this->position.getX()-2);
 isMoving=true;
 }
 if(IsKeyDown(KEY_S)==true&&this->position.getY()<410){
-this->position.setY(this->position.getY()+1);
+this->position.setY(this->position.getY()+2);
 isMoving=true;
 }
 if(IsKeyDown(KEY_W)==true&&this->position.getY()>0){
-this->position.setY(this->position.getY()-1);
+this->position.setY(this->position.getY()-2);
 isMoving=true;
 }
 if(isMoving==true){

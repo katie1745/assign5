@@ -17,7 +17,9 @@ private:
     int maxHealth;
     int attack;
     Texture2D texture;//儲存騎士的圖片
-
+    bool isInvincible=false;
+    float invincibleTimer=0.0f;
+    float speed=2.0f;
 public:
     Player(Position initialPosition);
     ~Player();
@@ -39,9 +41,28 @@ public:
         }
     }
     void setHealth(int h){health=h;}
-
-
-
+    void activateShield(float time){
+        isInvincible=true;
+        invincibleTimer=time;
+    }
+    void updateInvincible(float dt){
+        if(isInvincible){
+            invincibleTimer-=dt;
+            if(invincibleTimer<=0.0f){
+                isInvincible=false;
+            }
+        }
+    }//end void updateInvincible(float dt)
+    void renderShield(){
+        if(isInvincible){
+            DrawCircle(getX(),getY(),40,Fade(SKYBLUE,0.4f));
+            DrawCircleLines(getX(),getY(),40,BLUE);
+        }
+    }//end void renderShield()
+    bool checkInvincible() const{ return isInvincible;}
+    void setSpeed(float newSpeed){
+        speed=newSpeed;
+    }
 
 };
 #endif

@@ -4,7 +4,7 @@
 #include "raylib.h"
 #include <cmath>//為了使用開根號sqrt()
 
-class Bullet{
+class Bullet:public GameObject{
 private:
     Position position;
     float speedX;
@@ -32,7 +32,7 @@ public:
         position.setX(position.getX()+speedX);
         position.setY(position.getY()+speedY);
     }
-    void render(){
+    void render() override{
         DrawCircle(position.getX(),position.getY(),4,SKYBLUE);
         DrawCircle(position.getX(),position.getY(),2,WHITE);
     }

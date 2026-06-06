@@ -10,7 +10,8 @@
 int main(){
 	// 初始化
 	InitWindow(800,450,"OOP Game");
-	SetTargetFPS(60);
+	SetTargetFPS(60);// 【作用】將遊戲的最高更新率鎖定在每秒 60 幀，避免電腦把效能浪費在畫多餘的影格上（防止筆電風扇狂轉、發燙）。
+	// 【原理】如果沒有這行，迴圈會毫無保留地狂飆。設定後，Raylib 只要提早畫完一張圖，就會自動「休眠」等待，大幅降低 CPU 負擔，「效能控制」
 	Position startPos(400,225);
 	Player* myPlayer=GameObjectFactory::createPlayer(startPos);
 	Position coinPos(300,200);
@@ -19,24 +20,25 @@ int main(){
 	float survivalTime=0.0f;//記錄存活秒數
 	float spawnTimer=0.0f;// 用來算每 2 秒生一隻怪的計時器
 	int killCount=0;//擊殺數
+	float spawnInterval=2.0f;//	控制生怪速度的變數每 2 秒生一隻怪
 
 	std::vector<Enemy*> enemies;// 用來存活著的怪物們的容器
 	std::vector<Bullet*> bullets;//子彈們的容器
-	std::vector<Position> gems;//寶石們的容器
+	std::vector<Gem*> gems;//寶石們的容器
+	std::vector<Shield*> shields;
+
 
 	float shootTimer=0.0f;//射擊計時器，限制射擊頻率
+	float shootInterval=0.4f;
 	float playerInvincibleTimer = 0.0f;
 	Texture2D gemTexture=LoadTexture("../resources/gem.png");
-	// 遊戲畫面狀態列舉
+	
 	enum GameScreen{TITLE,GAMEPLAY,ENDING};
 	GameScreen currentScreen=TITLE;
 
 	Texture2D shieldTexture=LoadTexture("../resources/shield.png");
 	float shieldSpawnTimer=0.0f;
-	bool isShieldOnGround=false;
-	Position groundShieldPos(0,0);
-	bool inInvincible=false;//主角現在無敵嗎
-	float invincibleTimer=0.0f;//防護罩剩餘時間	
+	
 	
 	// 遊戲主迴圈
 	while(!WindowShouldClose()){
@@ -47,7 +49,7 @@ int main(){
 		case TITLE:
 		
 		if(IsKeyPressed(KEY_ENTER)){
-				currentScreen=GAMEPLAY;
+			currentScreen=GAMEPLAY;
 		}
 		break;
 		
@@ -61,51 +63,82 @@ int main(){
 		if(playerInvincibleTimer>0.0f){
 			playerInvincibleTimer-=GetFrameTime();
 		}
-		if(inInvincible){
-			invincibleTimer-=GetFrameTime();
-			if(invincibleTimer<=0.0f){
-				inInvincible=false;
-			}
-		}//end if(inInvincible)
+		
 		}//end if(myPlayer->getHealth>0)
 		// 每 2 秒生一隻怪
-		if(spawnTimer>=2.0f&& myPlayer->getHealth()>0){
-			Position spawnPos(GetRandomValue(50,750),GetRandomValue(50,400));
+		if(spawnTimer>=spawnInterval&& myPlayer->getHealth()>0){
+			int edge=GetRandomValue(0,3);
+			int spawnX=0;
+			int spawnY=0;
+			if(edge==0){
+				spawnX=GetRandomValue(-50,850);
+				spawnY=-50;
+			}
+			else if(edge==1){
+				spawnX=GetRandomValue(-50,850);
+				spawnY=500;
+			}
+			else if(edge==2){
+				spawnX=-50;
+				spawnY=500;
+			}
+			else if(edge==3){
+				spawnX=850;
+				spawnY=GetRandomValue(-50,500);
+			}
+			Position spawnPos(spawnX,spawnY);
+			//生怪的血量、速度、體型會隨著存活時間增加而變強，讓遊戲越玩越難
 			int enemyHp=3;
 			float enemySpeed=1.5f;
 			int enemySize=3;
-			if(survivalTime>45.0f){
-				enemyHp=15;
-				enemySpeed=3.2f;
-				enemySize=6;
-			}
-			else if(survivalTime>20.0f){
-				enemyHp=7;
-				enemySpeed=2.3f;
-				enemySize=4;
-			}
-			Enemy* newEnemy =new Enemy(spawnPos,enemyHp,enemySpeed,enemySize);
-			enemies.push_back(newEnemy);
-			spawnTimer=0.0f;
+			// 3. 難度動態升級：存活時間越久，怪物越強
+            if(survivalTime>10.0f){
+                enemyHp=15;
+                enemySpeed=3.2f;
+                enemySize=6;
+                shootInterval=0.10f; // 變身機關槍
+                spawnInterval=0.2f;  // 怪物海
+                myPlayer->setSpeed(5.0f); 
+            }
+            else if(survivalTime>5.0f){
+                enemyHp=7;
+                enemySpeed=2.3f;
+                enemySize=4;
+                shootInterval=0.25f; // 變身散彈槍
+                spawnInterval=0.6f;  // 生怪加快
+                myPlayer->setSpeed(4.0f); 
+            }
+
+            // 4. 真正把怪物造出來、裝進陣列、碼表歸零（就是妳剛剛不小心刪掉的這三句！）
+            Enemy* newEnemy = GameObjectFactory::createEnemy(spawnPos, enemyHp, enemySpeed, enemySize);
+            enemies.push_back(newEnemy);
+            spawnTimer = 0.0f;
+			
 		}//end if(spawnTimer>=2.0f)
-		// 按空白鍵射擊，射擊頻率限制為 0.5 秒一次
-		if(shootTimer>=0.4f&& !enemies.empty()&&myPlayer->getHealth()>0){
+		if(shootTimer>=shootInterval && !enemies.empty()&&myPlayer->getHealth()>0){
 			//尋找最近的怪物
-			float minDistSq=999999.0f;
-			Enemy* closestEnemy=nullptr;
-			for(Enemy* enemy : enemies) {
-                float dx = (float)myPlayer->getX() - (float)enemy->getX();
-                float dy = (float)myPlayer->getY() - (float)enemy->getY();
-                float distSq = (dx * dx) + (dy * dy);
-                if(distSq < minDistSq) { 
-					minDistSq = distSq; 
-					closestEnemy = enemy;
+			int maxTargets=1;//預設一次只打一隻
+			if(survivalTime>5.0f){
+				maxTargets=5;//存活超過10秒後一次可以打三隻
+			}
+			if(survivalTime>10.0f){
+				maxTargets=10;//存活超過10秒後一次可以打六隻
+			}
+			int targetsFired=0;//記錄這回合已瞄準過幾隻怪
+
+			for(Enemy*enemy:enemies){
+				float dx=(float)myPlayer->getX()-(float)enemy->getX();
+				float dy=(float)myPlayer->getY()-(float)enemy->getY();
+				float distSq=(dx*dx)+(dy*dy);
+				if(distSq<(450.0f*450.0f)){
+					bullets.push_back(GameObjectFactory::createBullet(myPlayer->getX()+20,myPlayer->getY()+20,enemy->getX(),enemy->getY()));
+					targetsFired++;
 				}
-			}//end for(Enemy* enemy : enemies)
-				if(closestEnemy!=nullptr){
-					bullets.push_back(new Bullet(myPlayer->getX()+20,myPlayer->getY()+20,closestEnemy->getX(),closestEnemy->getY()));;
+				if(targetsFired>=maxTargets){
+					break;
 				}
-				shootTimer=0.0f;
+			}//end for(Enemy*enemy:enemies)
+			shootTimer=0.0f;
         }//end if(shootTimer>=0.5f&& !enemies.empty())
 		//子彈飛行與「精準碰撞」判定
 		for(auto bIt=bullets.begin();bIt!=bullets.end();){
@@ -119,7 +152,7 @@ int main(){
 				if(isHit){
 					(*eIt)->takeDamage(1);
 					if((*eIt)->isDead()){
-						gems.push_back(Position((*eIt)->getX(),(*eIt)->getY()));
+						gems.push_back(GameObjectFactory::createGem(Position((*eIt)->getX(),(*eIt)->getY()),gemTexture));
 						killCount++;
 						delete *eIt;
 						eIt=enemies.erase(eIt);
@@ -153,26 +186,27 @@ int main(){
             bool isHit = ((dx * dx) + (dy * dy)) <= (rSum * rSum);
             
             // 如果撞到主角，而且主角沒有在無敵狀態，才扣血
-            if(isHit && myPlayer->getHealth() > 0 && playerInvincibleTimer <= 0.0f&&!inInvincible){
+            if(isHit && myPlayer->getHealth() > 0 && playerInvincibleTimer <= 0.0f&& !myPlayer->checkInvincible()){
                 myPlayer->takeDamage(1); 
                 playerInvincibleTimer = 1.0f; // 給予主角 1 秒無敵時間
             }
         	}//end for(auto eIt = enemies.begin(); eIt != enemies.end(); eIt++)
+			
 			// 5. 💎 吃寶石邏輯：主角走過去撞到寶石，Score 就加分！
 			for(auto gIt=gems.begin();gIt!=gems.end();){
-			float dx = (float)myPlayer->getX() - (float)gIt->getX();
-            float dy = (float)myPlayer->getY() - (float)gIt->getY();
-            float rSum = 20.0f + 20.0f;
-            bool isHit = ((dx * dx) + (dy * dy)) <= (rSum * rSum);
-				if(isHit && myPlayer->getHealth()>0){//吃到寶石
-					score+=10;//加十分
-					gIt=gems.erase(gIt);//寶石消失
+				float dx=(float)myPlayer->getX()-(float)(*gIt)->getX();
+				float dy=(float)myPlayer->getY()-(float)(*gIt)->getY();
+				if(((dx*dx)+(dy*dy))<=(40.0f*40.0f)&& myPlayer->getHealth()>0){
+					score+=10;
+					delete *gIt;
+					gIt=gems.erase(gIt);
 				}
 				else{
 					gIt++;
 				}
 
 			}//end for(auto gIt=gems.begin();gIt!=gems.end();)
+			
 			//吃金幣邏輯
 			if(myCoin!=nullptr){
 				float dx=(float)myPlayer->getX()-300.0f;
@@ -186,28 +220,36 @@ int main(){
 			if(myPlayer->getHealth()<=0){
 				currentScreen=ENDING;
 			}
+			
 			//防護罩出現機制
 			shieldSpawnTimer+=GetFrameTime();
 			if(shieldSpawnTimer>=30.0f){
-				isShieldOnGround=true;
-				shieldSpawnTimer=0.0f;//丟盾牌時間歸零，再重新算一次三十秒，三十掉了又會進入這個迴圈
-				groundShieldPos=Position(GetRandomValue(100,700),GetRandomValue(100,250));
+				Position pos(GetRandomValue(100,700),GetRandomValue(100,250));
+				shields.push_back(GameObjectFactory::createShield(pos,shieldTexture));
+				shieldSpawnTimer=0.0f;
 			}
 			//如果盾牌出現超過十秒就會消失
-			if(isShieldOnGround&&shieldSpawnTimer>=10.0f){
-				isShieldOnGround=false;//盾牌消失，只能等下一個三十秒
-			}
-			if(isShieldOnGround){
-				float dx=(float)myPlayer->getX()-(float)groundShieldPos.getX();
-				float dy=(float)myPlayer->getY()-(float)groundShieldPos.getY();
-				float rSum=30.0f+30.0f;//判斷的半徑
-				if((dx*dx)+(dy*dy)<=(rSum*rSum)){
-					isShieldOnGround=false;//吃到盾牌
-					inInvincible=true;//啟動保護模式
-					invincibleTimer=5.0f;
+			for(auto sIt=shields.begin();sIt!=shields.end();){
+				(*sIt)->decreaseTimer(GetFrameTime());
+				float dx=(float)myPlayer->getX()-(float)(*sIt)->getX();
+				float dy=(float)myPlayer->getY()-(float)(*sIt)->getY();
+				if(((dx*dx)+(dy*dy))<=(60.0f*60.0f)){
+					myPlayer->activateShield(5.0f);
+					delete *sIt;
+					sIt=shields.erase(sIt);
+				}
+				else if((*sIt)->isExpired()){
+					delete *sIt;
+					sIt=shields.erase(sIt);
+				}
+				else{
+					sIt++;
 				}
 			}
+			myPlayer->updateInvincible(GetFrameTime());
+			
 			break;
+		
 		case ENDING:
 			if(IsKeyPressed(KEY_R)){
 				score=0;
@@ -253,20 +295,24 @@ int main(){
 				}//end for(int x=0;x<800;x+=40)
 				if (myPlayer->getHealth() > 0) {
             		myPlayer->render();
+					myPlayer->renderShield();
 					if(myCoin!=nullptr){
 						myCoin->render();
 					}
         		}//end if (myPlayer->getHealth() > 0)
 
-				for(Position gem:gems){
-					DrawTextureEx(gemTexture,(Vector2){(float)gem.getX()-40,(float)gem.getY()-40},0.0f,0.023f,WHITE);
-				}//end for(Position gem:gems)
+				for(Gem* gem:gems){
+					gem->render();
+				}//end for(Gem* gem:gems)
 				for(Bullet* bullet:bullets){
 					bullet->render();
-				}//end for(Position bullet:bullets)
+				}//end for(Bullet* bullet:bullets)
 				for(Enemy* enemy:enemies){
 					enemy->render();
 				}//end for(Enemy* enemy:enemies)
+				for(Shield* shield:shields){
+					shield->render();
+				}
 
 				DrawRectangle(10, 10, 240, 170, Fade(BLACK, 0.6f));
        			DrawText(TextFormat("SCORE: %d", score), 20, 20, 25, GOLD);
@@ -276,7 +322,7 @@ int main(){
             		DrawText(TextFormat("PLAYER HP: %d", myPlayer->getHealth()), 20, 115, 20, RED);
         		} 
 				//狀態一：盾牌還沒出現，下一次出現倒數計時
-				if(!isShieldOnGround){
+				if(shields.empty()){
 					float nextTime=30.0f-shieldSpawnTimer;
 					DrawText(TextFormat("NEXT SHIELD: %.1fs",nextTime),20,145,20,SKYBLUE);
 				}
@@ -285,15 +331,8 @@ int main(){
 					float disapperTime=10.0f-shieldSpawnTimer;
 					DrawText(TextFormat("SHIELD VANISH:%.1fs",disapperTime),20,145,20,ORANGE);
 				}
-				if(isShieldOnGround){
-				DrawTextureEx(shieldTexture,(Vector2){(float)groundShieldPos.getX()-30,(float)groundShieldPos.getY()-30},
-				0.0f,0.01f,WHITE);
-				}
-				//吃到盾牌後的防護罩
-				if(inInvincible){
-					DrawCircle(myPlayer->getX(),myPlayer->getY(),40,Fade(SKYBLUE,0.4f));
-					DrawCircleLines(myPlayer->getX(),myPlayer->getY(),40,BLUE);
-				}
+				
+
 				break;
 			case ENDING:
 				DrawText("GAME OVER",250,150,50,RED);
@@ -307,6 +346,8 @@ int main(){
 //關閉遊戲前的最後清理
 	for(Enemy* enemy : enemies) { delete enemy; }
 	for(Bullet* bullet:bullets){ delete bullet;}
+	for(Gem* gem:gems){delete gem;}
+	for(Shield*shield:shields){delete shield;}
     delete myPlayer;
     CloseWindow();
 	UnloadTexture(gemTexture);
